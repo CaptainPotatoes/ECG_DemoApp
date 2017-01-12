@@ -187,7 +187,6 @@ public class DeviceControlActivity extends Activity implements BluetoothLe.Bluet
             ecgPlot.setDomainStepMode(XYStepMode.INCREMENT_BY_VAL);
             ecgPlot.setDomainStepValue(HISTORY_SECONDS_2 / 4);
         }
-
         //TODO: Adaptive Range?, or some method of figuring out what is connected
         if(filterData) {
             ecgPlot.setRangeBoundaries(-2.5, 2.5, BoundaryMode.AUTO); //EMG only!
