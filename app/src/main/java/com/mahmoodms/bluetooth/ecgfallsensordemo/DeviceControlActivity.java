@@ -187,6 +187,7 @@ public class DeviceControlActivity extends Activity implements BluetoothLe.Bluet
             ecgPlot.setDomainStepMode(XYStepMode.INCREMENT_BY_VAL);
             ecgPlot.setDomainStepValue(HISTORY_SECONDS_2 / 4);
         }
+
         //TODO: Adaptive Range?, or some method of figuring out what is connected
         if(filterData) {
             ecgPlot.setRangeBoundaries(-2.5, 2.5, BoundaryMode.AUTO); //EMG only!
@@ -398,6 +399,8 @@ public class DeviceControlActivity extends Activity implements BluetoothLe.Bluet
     private File root;
     private String[] valueCsvWrite = new String[1];
 
+    private int exportFileDataPointCounter = 0;
+    private int exportFilePart = 1;
     public void exportFile(boolean init, boolean terminateExport,
                            String fileName, double ecgData) throws IOException {
         if (init) {
@@ -412,14 +415,30 @@ public class DeviceControlActivity extends Activity implements BluetoothLe.Bluet
         if (root.canWrite() && init) {
             File dir = new File(root.getAbsolutePath() + "/DataDirectory");
             boolean mkdirsA = dir.mkdirs();
-            file = new File(dir, fileTimeStamp + ".csv");
+            file = new File(dir, fileTimeStamp + "_part"+ String.valueOf(exportFilePart) + ".csv");
             csvWriter = new CSVWriter(new FileWriter(file));
-            Log.d("New File Generated", fileTimeStamp + ".csv");
+            Log.d("New File Generated", fileTimeStamp + "_part"+ String.valueOf(exportFilePart) + ".csv");
+            exportLogFile(false, "NEW FILE GENERATED: "+fileTimeStamp + "_part"+ String.valueOf(exportFilePart) + ".csv\r\n\r\n");
+            if(exportFilePart!=1)exportLogFile(false, getDetails());
         }
         //Write Data to File (if init & terminateExport are both false)
         if (!init && !terminateExport) {
-            valueCsvWrite[0] = ecgData + "";
-            csvWriter.writeNext(valueCsvWrite);
+            //TODO: CHANGE THIS TO 1048576
+            if(exportFileDataPointCounter<1048575/*15000*/) {
+                valueCsvWrite[0] = ecgData + "";
+                csvWriter.writeNext(valueCsvWrite);
+                exportFileDataPointCounter++;
+            } else {
+                valueCsvWrite[0] = ecgData + "";
+                csvWriter.writeNext(valueCsvWrite);
+                csvWriter.flush();
+                csvWriter.close();
+                exportFileDataPointCounter=0;
+                exportFilePart++;
+                //generate new file:
+                exportFile(true, false, fileTimeStamp,0);
+            }
+
         }
         if (terminateExport) {
             csvWriter.flush();
@@ -443,7 +462,9 @@ public class DeviceControlActivity extends Activity implements BluetoothLe.Bluet
         String fileTimeStampConcat = "ECGSensorData_" + getTimeStamp();
         Log.d("onResume-timeStamp", fileTimeStampConcat);
         //TODO (IF ECG/EMG PRESENT ONLY!!!) → We're creating a lot of empty files!!!
-
+        if(!fileLogInitialized) {
+            exportLogFile(true, "");
+        }
         if(!fileExportInitialized) {
             try {
                 exportFile(true, false, fileTimeStampConcat, 0.0);
@@ -451,9 +472,7 @@ public class DeviceControlActivity extends Activity implements BluetoothLe.Bluet
                 Log.e("IOEXCEPTION:", ex.toString());
             }
         }
-        if(!fileLogInitialized) {
-            exportLogFile(true, "");
-        }
+
         redrawer.start();
         super.onResume();
     }
@@ -672,7 +691,7 @@ public class DeviceControlActivity extends Activity implements BluetoothLe.Bluet
             batteryLevel = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
             updateBatteryStatus(batteryLevel, batteryLevel + " %");
             String timeStamp = getTimeStamp2();
-            exportLogFile(false, "Battery Level Changed at "+timeStamp+getDetails()+"\r\n");
+            exportLogFile(false, "Battery Level Changed at " + timeStamp + getDetails()+"\r\n");
             /*
             try {
                 GmailSender sender = new GmailSender("developmenttestingmsm@gmail.com",">S#AWr+L?ZwBQ'y");
@@ -819,7 +838,8 @@ public class DeviceControlActivity extends Activity implements BluetoothLe.Bluet
                     explicitXValsLong[750+i] = ((double) mTimeSeconds) + ((double)i/250);
                 }
                 //filter:
-                ECGBufferFiltered2 = jFirFilter(ECGBufferUnfiltered);
+//                ECGBufferFiltered2 = jFirFilter(ECGBufferUnfiltered);
+                ECGBufferFiltered2 = jBwFilter(ECGBufferUnfiltered);
                 //Todo: adjust Range Step Value every 1 s:
                 //Every 4 seconds elapsed:
                 //TODO: Now Analyze filtered data (after plot)
@@ -972,7 +992,7 @@ public class DeviceControlActivity extends Activity implements BluetoothLe.Bluet
                 "Version Release: " + Build.VERSION.RELEASE + "\r\n" +
                 "Android Battery Level: " + androidDeviceBatteryLevel + "\r\n" +
                 "Battery Status: " + androidDeviceBatteryStatus + "\r\n" + "\r\n" +
-                " ";
+                "";
     }
 
     //Get Data Rate (assigned to ECG)
@@ -1323,6 +1343,10 @@ public class DeviceControlActivity extends Activity implements BluetoothLe.Bluet
     private native int jmainFirFilter(boolean b);
 
     private native double[] jFirFilter(double[] ecg); //size = 1000
+
+    //ECG BW Filter:
+
+    private native double[] jBwFilter(double[] ecg);
 
     //ECG ANALYSIS (SIMPLE):
 //    private native double jEcgAnalysis(double[] ecg);

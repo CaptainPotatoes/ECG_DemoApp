@@ -32,6 +32,7 @@
 // Include Files
 #include "rt_nonfinite.h"
 #include "fir_combined.h"
+#include "bw_combined.h"
 #include "fir_main.h"
 #include <jni.h>
 #include <android/log.h>
@@ -86,6 +87,8 @@ static void main_fir_combined()
   // Call the entry-point 'fir_combined'.
   argInit_1000x1_real_T(dv2);
   fir_combined(dv2, ecg_out);
+  argInit_1000x1_real_T(dv2);
+  bw_combined(dv2, ecg_out);
 }
 
 //
